@@ -70,12 +70,14 @@ function Convert-Minutes ($time)
 
 function Get-CurrentTime
 {
-	[string]$syst = Get-Date -DisplayHint Time
-	[int]$timelen = $syst.Length
-	$syst = $syst.Substring(($timelen - 8), 8)
-	[int]$hours = $syst.Substring(0, 2)
-	[int]$mins = $syst.Substring(3, 2)
-	$time = ($hours * 60) + $mins
+	[string]$syst = Get-Date -Format o
+	$year = $syst.Substring(0,10)
+	[int]$hours = $syst.Substring(11, 2)
+	[int]$mins = $syst.Substring(14, 2)
+	$time = @("Date","Minutes")
+	$minutes = ($hours * 60) + $mins
+	$time[1] = $minutes
+	$time[0] = $year
 	Return $time
 }
 
@@ -104,7 +106,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 					$nextclass[1] = "False"
 					$nextclass[2] = "0"
 					$nextclass[3] = [int]($sectiontime[$i + 1])
-					$nextclass[4] = ($i /2)
+					$nextclass[4] = ($i)
 					$i = $times
 				}
 				elseif ($i -eq ($times - 1))
@@ -113,7 +115,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 					$nextclass[1] = "False"
 					$nextclass[2] = "0"
 					$nextclass[3] = "0"
-					$nextclass[4] = ($i /2)
+					$nextclass[4] = ($i)
 					$i = $times
 				}
 				elseif ($i % 2 -eq 0)
@@ -122,7 +124,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 					$nextclass[1] = "True"
 					$nextclass[2] = [int]($sectiontime[$i + 3])
 					$nextclass[3] = [int]($sectiontime[$i + 2])
-					$nextclass[4] = ($i /2)
+					$nextclass[4] = ($i)
 					$i = $times
 				}
 				elseif ($i % 2 -eq 1)
@@ -131,7 +133,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 					$nextclass[1] = "True"
 					$nextclass[2] = [int]($sectiontime[$i + 1])
 					$nextclass[3] = [int]($sectiontime[$i + 2])
-					$nextclass[4] = ($i /2)
+					$nextclass[4] = ($i)
 					$i = $times
 				}
 			}
@@ -144,7 +146,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 				$nextclass[1] = "True"
 				$nextclass[2] = [int]($sectiontime[$i])
 				$nextclass[3] = [int]($sectiontime[$i + 1])
-				$nextclass[4] = ($i /2)
+				$nextclass[4] = ($i)
 				$i = $times
 			}
 			elseif ($i -eq ($times - 1))
@@ -153,7 +155,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 				$nextclass[1] = "False"
 				$nextclass[2] = "0"
 				$nextclass[3] = [int]($sectiontime[$i])
-				$nextclass[4] = ($i /2)
+				$nextclass[4] = ($i)
 				$i = $times
 			}
 			elseif ($i % 2 -eq 0)
@@ -162,7 +164,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 				$nextclass[1] = "True"
 				$nextclass[2] = [int]($sectiontime[$i])
 				$nextclass[3] = [int]($sectiontime[$i + 1])
-				$nextclass[4] = ($i /2)
+				$nextclass[4] = ($i)
 				$i = $times
 			}
 			elseif ($i % 2 -eq 1)
@@ -171,7 +173,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 				$nextclass[1] = "True"
 				$nextclass[2] = [int]($sectiontime[$i + 1])
 				$nextclass[3] = [int]($sectiontime[$i])
-				$nextclass[4] = ($i /2)
+				$nextclass[4] = ($i)
 				$i = $times
 			}
 		}
@@ -183,7 +185,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 
 function Get-TodaysActivities ($loc, $date)
 {
-	$sectionmeetings = New-TemporaryFile
+	$sectionmeetings = [System.IO.Path]::GetTempFileName()
 	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
 	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
@@ -211,10 +213,10 @@ function Get-TodaysActivities ($loc, $date)
 		}
 		Else { $i++ }
 	}
-	$sectionslist = New-TemporaryFile
+	$sectionslist = [System.IO.Path]::GetTempFileName()
 	Select-String -Path $sectionmeetings -Pattern $date -AllMatches | Select -ExpandProperty line > $sectionslist
-	$times = New-TemporaryFile
-	$times2 = New-TemporaryFile
+	$times = [System.IO.Path]::GetTempFileName()
+	$times2 = [System.IO.Path]::GetTempFileName()
 	$getact = Get-Content -Path $sectionslist
 	$events = @()
 	Foreach ($line in $getact)
@@ -233,12 +235,13 @@ function Get-TodaysActivities ($loc, $date)
 				$ste = $i - 2
 				$actname = $line.Substring($sts, $ste)
 				$events += @($actname)
+				$events += @($actname)
 				$i = $max
 			}
 			Else { $i++ }
 		}
 	}
-	$eventtemp = New-TemporaryFile
+	$eventtemp = [System.IO.Path]::GetTempFileName()
 	$events | Out-File $eventtemp
 	Select-String -Path $sectionslist -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value } > $times
 	Select-String -Path $times -Pattern "\d{2,4}" -AllMatches | %{ $_.Matches } | %{ $_.Value } > $times2
@@ -251,7 +254,16 @@ function Get-TodaysActivities ($loc, $date)
 	Return $todaysstuff
 }
 
-
+function Get-LocationID2 ($buildingcode, $roomnumber)
+{
+	$xmlpath = Get-ScriptDirectory
+	$xmlpath = $xmlpath + "\CarthageData.dat"
+	[xml]$packages = Get-Content -Path $xmlpath
+	$bnode = $packages | Select-Xml -Xpath "//Building"
+	$locid = $bnode | Select-Object -ExpandProperty "node" | Where-Object { $_.Code -eq $buildingcode } | Select-Object -ExpandProperty ChildNodes | Where-Object { $_.Number -eq $roomnumber } | Select LocationID
+	$loc = $locid.LocationID
+	Return $loc
+}
 
 function Get-LocationID ($bld, $rmn, $locd)
 {
@@ -267,4 +279,79 @@ function Get-LocationID ($bld, $rmn, $locd)
 		}
 	}
 	Return $res
+}
+
+function Update-ComboBox
+{
+<#
+	.SYNOPSIS
+		This functions helps you load items into a ComboBox.
+	
+	.DESCRIPTION
+		Use this function to dynamically load items into the ComboBox control.
+	
+	.PARAMETER ComboBox
+		The ComboBox control you want to add items to.
+	
+	.PARAMETER Items
+		The object or objects you wish to load into the ComboBox's Items collection.
+	
+	.PARAMETER DisplayMember
+		Indicates the property to display for the items in this control.
+	
+	.PARAMETER Append
+		Adds the item(s) to the ComboBox without clearing the Items collection.
+	
+	.EXAMPLE
+		Update-ComboBox $combobox1 "Red", "White", "Blue"
+	
+	.EXAMPLE
+		Update-ComboBox $combobox1 "Red" -Append
+		Update-ComboBox $combobox1 "White" -Append
+		Update-ComboBox $combobox1 "Blue" -Append
+	
+	.EXAMPLE
+		Update-ComboBox $combobox1 (Get-Process) "ProcessName"
+	
+	.NOTES
+		Additional information about the function.
+#>
+	
+	param
+	(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Windows.Forms.ComboBox]$ComboBox,
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		$Items,
+		[Parameter(Mandatory = $false)]
+		[string]$DisplayMember,
+		[switch]$Append
+	)
+	
+	if (-not $Append)
+	{
+		$ComboBox.Items.Clear()
+	}
+	
+	if ($Items -is [Object[]])
+	{
+		$ComboBox.Items.AddRange($Items)
+	}
+	elseif ($Items -is [System.Collections.IEnumerable])
+	{
+		$ComboBox.BeginUpdate()
+		foreach ($obj in $Items)
+		{
+			$ComboBox.Items.Add($obj)
+		}
+		$ComboBox.EndUpdate()
+	}
+	else
+	{
+		$ComboBox.Items.Add($Items)
+	}
+	
+	$ComboBox.DisplayMember = $DisplayMember
 }
