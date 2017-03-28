@@ -203,32 +203,6 @@
 	  <Room Number="253" LocationID="d84dd9a1-a52e-4e69-9f65-0fcbee7c0e5d" Description="Classroom-Music" Capacity="30" />
 	  <Room Number="340" LocationID="8f71f273-e16e-4ec0-ad53-da7516068139" Description="Recital Hall" Capacity="150" />
 	  <Room Number="VPAL" LocationID="3ba44eea-ca05-489e-b955-be5cb81d0367" Description="Art Gallery" Capacity="12" />
-	  <Room Number="201" LocationID="acdf289e-4494-4915-8595-41952111b090" Description="Classroom-General" Capacity="24" />
-	  <Room Number="202" LocationID="0e658095-07d5-456a-9673-af337a1baf6b" Description="Classroom-Seminar" Capacity="12" />
-	  <Room Number="203" LocationID="e5436832-c95a-411a-9e84-cdfff9cf5e65" Description="Classroom-General" Capacity="18" />
-	  <Room Number="220" LocationID="8eb3ef2e-b8f5-4b4f-ab27-7ba2a1d484d7" Description="Classroom-General" Capacity="20" />
-	  <Room Number="221" LocationID="c7a1c504-af2d-4216-8967-617927583267" Description="Classroom-General" Capacity="24" />
-	  <Room Number="222" LocationID="97e5aba7-5861-4019-ab64-85bc625a38eb" Description="Classroom-Education" Capacity="28" />
-	  <Room Number="223" LocationID="a1683f66-7bbb-4500-93d4-120c6ab482b1" Description="Classroom-General" Capacity="40" />
-	  <Room Number="224B" LocationID="90f2b166-90ae-4e26-b098-b1e4cd066062" Description="Lobby" Capacity="1" />
-	  <Room Number="225" LocationID="8dd8e652-4f1f-46dc-85a7-23fa2e5a060e" Description="Classroom-General" Capacity="36" />
-	  <Room Number="227" LocationID="d454d8bf-b921-414d-a4eb-716f0594f49a" Description="Classroom-General" Capacity="36" />
-	  <Room Number="229" LocationID="3a79a7ca-ebbf-4a2c-ac94-d2116b416b72" Description="Classroom-General" Capacity="32" />
-	  <Room Number="230" LocationID="e1e30ee8-a18c-4468-8609-6831c89fd0c0" Description="Classroom-General" Capacity="32" />
-	  <Room Number="231" LocationID="4a3ca4f0-a436-473a-b3b0-5b2fa184be82" Description="Classroom-General" Capacity="32" />
-	  <Room Number="233" LocationID="75d1daf7-4524-4313-999f-63a9300a824b" Description="Classroom-General" Capacity="32" />
-	  <Room Number="234" LocationID="ec3fc094-a36e-4600-a33b-2a5d77570f00" Description="Classroom-General" Capacity="26" />
-	  <Room Number="300" LocationID="a9013e27-b004-4c0b-8377-4135d1748c7b" Description="Classroom-General" Capacity="36" />
-	  <Room Number="318" LocationID="f028b9ac-d4d3-4556-9b4a-6fe25c2e697e" Description="Classroom-General" Capacity="39" />
-	  <Room Number="319" LocationID="0f25e066-0fb7-4619-bab7-d7592382fd75" Description="Classroom-General" Capacity="20" />
-	  <Room Number="328" LocationID="51084ed7-5b42-408f-af08-c008e9343c36" Description="Lobby" Capacity="1" />
-	  <Room Number="331" LocationID="fa1a9c7a-efd4-4e18-a9c6-65e89b427b02" Description="Conference Room" Capacity="16" />
-	  <Room Number="337" LocationID="9228b12e-0cc0-41b6-87f7-59caee9e405e" Description="Classroom-General" Capacity="40" />
-	  <Room Number="424" LocationID="1f25dd73-0a2f-49aa-9147-42c0b3fb5820" Description="Classroom-General" Capacity="26" />
-	  <Room Number="425" LocationID="4149a665-0ac9-470b-8303-26126abd887d" Description="Classroom-General" Capacity="44" />
-	  <Room Number="434T" LocationID="2d916c27-42af-4a98-9347-01c027f34283" Description="Conference Room" Capacity="12" />
-	  <Room Number="LHL3" LocationID="76b2a923-ca51-44a7-b8c7-26a0357637bd" Description="3rd Floor East Lobby" Capacity="34" />
-	  <Room Number="PSR" LocationID="ad83e263-a777-420d-b826-66dea5d3df39" Description="President's Seminar Room" Capacity="14" />
 	</Building>
 	<Building Name="Courtyards" Code="CY">
 	  <Room Number="DH" LocationID="64bf9970-435f-48ed-bb89-cf13992ceff2" Description="Denhart Hall Courtyard" Capacity="500" />

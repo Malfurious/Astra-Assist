@@ -355,3 +355,53 @@ function Update-ComboBox
 	
 	$ComboBox.DisplayMember = $DisplayMember
 }
+
+function Error-CheckDateTime ($date, $alternatetime)
+{
+	[System.Collections.ArrayList]$time = $alternatetime -split ":"
+	If ($time[0].Length -lt 2)
+	{
+		$timeone = $time[0]
+		$time[0] = "0" + $timeone
+	}
+	If ($time[2] -eq $null)
+	{
+		$subtime = $time[1] -split " "
+		If ($subtime[1] -eq $null)
+		{
+			$time.Add(($subtime.Substring(2, 2)).ToUpper())
+			$time[1] = ($subtime.Substring(0, 2))
+		}
+		Else
+		{
+			$junk = $time.Add(($subtime[1]).ToUpper())
+			$time[1] = $subtime[0]
+		}
+	}
+	IF ($time[2] -eq "PM" -and $time[0] -lt "12")
+	{
+		$hours = [int]($time[0]) + 12
+	}
+	elseif ($time[2] -eq "PM" -and $time[0] -eq "12")
+	{
+		$hours = [int]($time[0])
+	}
+	else { $hours = [int]($time[0]) }
+	$minutes = [int]($time[1])
+	$currenttime = ($hours * 60) + $minutes
+	[System.Collections.ArrayList]$datetest = $date -split ($date.Substring(4, 1))
+	If ($datetest[1].Length -lt 2)
+	{
+		$datetest[1] = "0" + $datetest[1]
+	}
+	elseif ($datetest[2].Length -lt 2)
+	{
+		$datetest[2] = "0" + $datetest[2]
+	}
+	$date = $datetest[0] + "-" + $datetest[1] + "-" + $datetest[2]
+	$realdate = $date + "T00:00:00"
+	$results = @("date","time")
+	$results[0] = $realdate
+	$results[1] = $currenttime
+	Return $results
+}
