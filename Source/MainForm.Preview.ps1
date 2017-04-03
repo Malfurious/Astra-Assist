@@ -18,15 +18,18 @@ function Show-MainForm_psf {
 	$formAstraAssist = New-Object 'System.Windows.Forms.Form'
 	$tabcontrol1 = New-Object 'System.Windows.Forms.TabControl'
 	$simpletab = New-Object 'System.Windows.Forms.TabPage'
-	$datetimepicker2 = New-Object 'System.Windows.Forms.DateTimePicker'
 	$roomname = New-Object 'System.Windows.Forms.TextBox'
 	$radiobuttonCurrentTime = New-Object 'System.Windows.Forms.RadioButton'
 	$labelRoomName = New-Object 'System.Windows.Forms.Label'
 	$radiobuttonAlternateTime = New-Object 'System.Windows.Forms.RadioButton'
 	$buttonCheckRoom = New-Object 'System.Windows.Forms.Button'
+	$labelTime = New-Object 'System.Windows.Forms.Label'
 	$classname = New-Object 'System.Windows.Forms.TextBox'
+	$labelDate = New-Object 'System.Windows.Forms.Label'
 	$labelCurrentNextEventName = New-Object 'System.Windows.Forms.Label'
+	$altdate = New-Object 'System.Windows.Forms.TextBox'
 	$labelRoomAvailability = New-Object 'System.Windows.Forms.Label'
+	$alttime = New-Object 'System.Windows.Forms.TextBox'
 	$labelCurrentEventEndsAt = New-Object 'System.Windows.Forms.Label'
 	$labelAlternateTime = New-Object 'System.Windows.Forms.Label'
 	$labelEventScheduledAfterC = New-Object 'System.Windows.Forms.Label'
@@ -51,7 +54,6 @@ function Show-MainForm_psf {
 	$label1 = New-Object 'System.Windows.Forms.Label'
 	$roomselectionbox2 = New-Object 'System.Windows.Forms.ComboBox'
 	$buildingselectionbox2 = New-Object 'System.Windows.Forms.ComboBox'
-	$helptab = New-Object 'System.Windows.Forms.TabPage'
 	$tooltip1 = New-Object 'System.Windows.Forms.ToolTip'
 	$InitialFormWindowState = New-Object 'System.Windows.Forms.FormWindowState'
 	#endregion Generated Form Objects
@@ -578,7 +580,7 @@ wAMAAMADAADAAwAA')
 	$tabcontrol1.Controls.Add($simpletab)
 	$tabcontrol1.Controls.Add($customtab)
 	$tabcontrol1.Controls.Add($roomcardtab)
-	$tabcontrol1.Controls.Add($helptab)
+	$tabcontrol1.Enabled = $False
 	$tabcontrol1.Location = '8, 9'
 	$tabcontrol1.Name = 'tabcontrol1'
 	$tabcontrol1.SelectedIndex = 0
@@ -587,15 +589,18 @@ wAMAAMADAADAAwAA')
 	#
 	# simpletab
 	#
-	$simpletab.Controls.Add($datetimepicker2)
 	$simpletab.Controls.Add($roomname)
 	$simpletab.Controls.Add($radiobuttonCurrentTime)
 	$simpletab.Controls.Add($labelRoomName)
 	$simpletab.Controls.Add($radiobuttonAlternateTime)
 	$simpletab.Controls.Add($buttonCheckRoom)
+	$simpletab.Controls.Add($labelTime)
 	$simpletab.Controls.Add($classname)
+	$simpletab.Controls.Add($labelDate)
 	$simpletab.Controls.Add($labelCurrentNextEventName)
+	$simpletab.Controls.Add($altdate)
 	$simpletab.Controls.Add($labelRoomAvailability)
+	$simpletab.Controls.Add($alttime)
 	$simpletab.Controls.Add($labelCurrentEventEndsAt)
 	$simpletab.Controls.Add($labelAlternateTime)
 	$simpletab.Controls.Add($labelEventScheduledAfterC)
@@ -611,18 +616,6 @@ wAMAAMADAADAAwAA')
 	$simpletab.TabIndex = 0
 	$simpletab.Text = 'Simple Search'
 	$simpletab.UseVisualStyleBackColor = $True
-	#
-	# datetimepicker2
-	#
-	$datetimepicker2.CalendarFont = 'Microsoft Sans Serif, 10pt'
-	$datetimepicker2.CustomFormat = 'MM/dd/yyyy hh:mm tt'
-	$datetimepicker2.Font = 'Microsoft Sans Serif, 10pt'
-	$datetimepicker2.Format = 'Custom'
-	$datetimepicker2.Location = '265, 96'
-	$datetimepicker2.Name = 'datetimepicker2'
-	$datetimepicker2.ShowUpDown = $True
-	$datetimepicker2.Size = '147, 23'
-	$datetimepicker2.TabIndex = 21
 	#
 	# roomname
 	#
@@ -684,6 +677,16 @@ Ex. DSC 251 = David Straz Center Room 251
 	$buttonCheckRoom.UseVisualStyleBackColor = $True
 	$buttonCheckRoom.add_Click($buttonCheckRoom_Click)
 	#
+	# labelTime
+	#
+	$labelTime.AutoSize = $True
+	$labelTime.Font = 'Microsoft Sans Serif, 12pt'
+	$labelTime.Location = '450, 60'
+	$labelTime.Name = 'labelTime'
+	$labelTime.Size = '43, 20'
+	$labelTime.TabIndex = 16
+	$labelTime.Text = 'Time'
+	#
 	# classname
 	#
 	$classname.Location = '253, 234'
@@ -691,6 +694,16 @@ Ex. DSC 251 = David Straz Center Room 251
 	$classname.ReadOnly = $True
 	$classname.Size = '283, 20'
 	$classname.TabIndex = 17
+	#
+	# labelDate
+	#
+	$labelDate.AutoSize = $True
+	$labelDate.Font = 'Microsoft Sans Serif, 12pt'
+	$labelDate.Location = '331, 60'
+	$labelDate.Name = 'labelDate'
+	$labelDate.Size = '44, 20'
+	$labelDate.TabIndex = 15
+	$labelDate.Text = 'Date'
 	#
 	# labelCurrentNextEventName
 	#
@@ -702,6 +715,21 @@ Ex. DSC 251 = David Straz Center Room 251
 	$labelCurrentNextEventName.TabIndex = 18
 	$labelCurrentNextEventName.Text = 'Current/Next Event Name:'
 	#
+	# altdate
+	#
+	$altdate.Enabled = $False
+	$altdate.Font = 'Microsoft Sans Serif, 12pt'
+	$altdate.ForeColor = 'WindowText'
+	$altdate.Location = '302, 83'
+	$altdate.MinimumSize = '100, 26'
+	$altdate.Multiline = $True
+	$altdate.Name = 'altdate'
+	$altdate.Size = '100, 26'
+	$altdate.TabIndex = 3
+	$altdate.TextAlign = 'Center'
+	$tooltip1.SetToolTip($altdate, 'Enter Date in following format:
+YYYY-MM-DD')
+	#
 	# labelRoomAvailability
 	#
 	$labelRoomAvailability.AutoSize = $True
@@ -711,6 +739,22 @@ Ex. DSC 251 = David Straz Center Room 251
 	$labelRoomAvailability.Size = '132, 20'
 	$labelRoomAvailability.TabIndex = 3
 	$labelRoomAvailability.Text = 'Room Availability:'
+	#
+	# alttime
+	#
+	$alttime.Enabled = $False
+	$alttime.Font = 'Microsoft Sans Serif, 12pt'
+	$alttime.ForeColor = 'WindowText'
+	$alttime.Location = '420, 83'
+	$alttime.Multiline = $True
+	$alttime.Name = 'alttime'
+	$alttime.Size = '100, 26'
+	$alttime.TabIndex = 4
+	$alttime.TextAlign = 'Center'
+	$tooltip1.SetToolTip($alttime, 'Enter Time in following format:
+HH:MM:(AM or PM)
+
+')
 	#
 	# labelCurrentEventEndsAt
 	#
@@ -958,15 +1002,6 @@ Ex. DSC 251 = David Straz Center Room 251
 	$buildingselectionbox2.Size = '221, 21'
 	$buildingselectionbox2.TabIndex = 0
 	$buildingselectionbox2.add_TextChanged($buildingselectionbox2_TextChanged)
-	#
-	# helptab
-	#
-	$helptab.Location = '4, 22'
-	$helptab.Name = 'helptab'
-	$helptab.Size = '540, 256'
-	$helptab.TabIndex = 3
-	$helptab.Text = 'Help'
-	$helptab.UseVisualStyleBackColor = $True
 	#
 	# tooltip1
 	#
