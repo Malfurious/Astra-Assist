@@ -182,79 +182,7 @@ function Get-RoomAvailability ($sectiontime, $currenttime)
 }
 
 
-
-function Get-TodaysActivities ($loc, $date)
-{
-	$sectionmeetings = [System.IO.Path]::GetTempFileName()
-	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
-	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
-	$cookies = $websession.Cookies.GetCookies($cookieurl)
-	$session.Cookies.Add($cookies)
-	$baseurl = "https://astra.carthage.edu/Astra/~api/query/vcalendaractivity?fields=ActivityName,StartDate,StartMinute,EndMinute&filter=LocationId=="
-	$bi = $baseurl + ('"' + $loc + '"')
-	$results = Invoke-WebRequest -URI $bi -WebSession $session
-	[char[]]$stuff = $results.Content
-	$stuff2 = $results.Content
-	$i = 0
-	$max = $stuff.Length
-	While ($i -le $max)
-	{
-		If ($stuff[$i] -eq "[" -Or $stuff[$i] -eq "[[")
-		{
-			$sts = $i
-			$i++
-		}
-		Elseif ($stuff[$i] -eq "]" -Or $stuff[$i] -eq "]]")
-		{
-			$ste = ($i - $sts) + 1
-			$stuff2.Substring($sts, $ste) | Out-File $sectionmeetings -Append
-			$i++
-		}
-		Else { $i++ }
-	}
-	$sectionslist = [System.IO.Path]::GetTempFileName()
-	Select-String -Path $sectionmeetings -Pattern $date -AllMatches | Select -ExpandProperty line > $sectionslist
-	$times = [System.IO.Path]::GetTempFileName()
-	$times2 = [System.IO.Path]::GetTempFileName()
-	$getact = Get-Content -Path $sectionslist
-	$events = @()
-	Foreach ($line in $getact)
-	{
-		$i = 0
-		$max = $line.Length
-		While ($i -le $max)
-		{
-			If ($line[$i] -eq "[" -And $line[$i + 1] -eq '"')
-			{
-				$sts = ($i + 2)
-				$i++
-			}
-			Elseif ($line[$i] -eq '"' -And $line[$i + 1] -eq ",")
-			{
-				$ste = $i - 2
-				$actname = $line.Substring($sts, $ste)
-				$events += @($actname)
-				$events += @($actname)
-				$i = $max
-			}
-			Else { $i++ }
-		}
-	}
-	$eventtemp = [System.IO.Path]::GetTempFileName()
-	$events | Out-File $eventtemp
-	Select-String -Path $sectionslist -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value } > $times
-	Select-String -Path $times -Pattern "\d{2,4}" -AllMatches | %{ $_.Matches } | %{ $_.Value } > $times2
-	Remove-Item -Path $times -Force
-	Remove-Item -Path $sectionslist -Force
-	Remove-Item -Path $sectionmeetings -Force
-	$todaysstuff = @("Event Names", "Event Times")
-	$todaysstuff[0] = $eventtemp
-	$todaysstuff[1] = $times2
-	Return $todaysstuff
-}
-
-function Get-LocationID2 ($buildingcode, $roomnumber)
+function Get-LocationID ($buildingcode, $roomnumber)
 {
 	$xmlpath = Get-ScriptDirectory
 	$xmlpath = $xmlpath + "\CarthageData.dat"
@@ -265,20 +193,121 @@ function Get-LocationID2 ($buildingcode, $roomnumber)
 	Return $loc
 }
 
-function Get-LocationID ($bld, $rmn, $locd)
+function Get-TodaysActivities ($loc, $date)
 {
-	$name = $bld + $rmn
-	$lod = Get-Content $locd
-	For ($i = 0; $i -lt $lod.Length; $i++)
+	$sectionmeetings = @()
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
+	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,LocationId&filter="
+	$filters = "(((StartDate%3E%3D%22" + $date + "%22)%26%26(EndDate%3C%3D%22" + $date + "%22))%26%26(LocationId%20in%20(%22" + $locid + "%22)))"
+	$bi = $baseurl + $filters
+	$results = Invoke-WebRequest -URI $bi -WebSession $session
+	$act = @()
+	$acts = $results.Content
+	$dur = $acts.Length
+	For ($i = 0; $i -lt $dur; $i++)
 	{
-		$data = $lod[$i] -split " "
-		If ($data[0] -eq $name)
+		If ($acts[$i] -eq "[")
 		{
-			$res = $data[1]
-			$i = $lod.Length
+			If ($acts[$i + 1] -eq "[")
+			{
+				$st = ($i + 1)
+			}
+			Else
+			{
+				$st = $i
+			}
+		}
+		Elseif ($acts[$i] -eq "]")
+		{
+			If ($acts[$i + 1] -eq "]")
+			{
+				$en = ($i - $st) + 1
+				$act += $acts.Substring($st, $en)
+				$i = ($i + 1)
+			}
+			Else
+			{
+				$en = ($i - $st) + 1
+				$act += $acts.Substring($st, $en)
+			}
 		}
 	}
-	Return $res
+	If ($act -ne "[]")
+	{
+		$times = ($act | Select-String -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value }).Split(",")
+		$info = @()
+		$fname = @()
+		$eventnames = @()
+		$timecounter = 0
+		For ($s = 0; $s -lt $act.Length; $s++)
+		{
+			$ex = $act[$s].ToString()
+			$punc = 0
+			While ($punc -le 6)
+			{
+				For ($i = 0; $i -lt ($ex.Length); $i++)
+				{
+					If ($ex[$i] -eq '"' -And $punc -lt 1)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 1)
+					{
+						$en = ($i - $st)
+						$first = $ex.SubString($st, $en)
+						$punc++
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 2)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 3)
+					{
+						$en = ($i - $st)
+						$last = $ex.SubString($st, $en)
+						$fname += $first + " " + $last
+						$punc++
+					}
+					ElseIf ($ex[$i] -eq '"' -And $punc -eq 4)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 5)
+					{
+						$en = ($i - $st)
+						$eventname = $ex.SubString($st, $en)
+						$item = New-Object PSObject
+						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
+						$item | Add-Member -type NoteProperty -Name 'Times' -Value $times[$timecounter]
+						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventname
+						$info += $item
+						$timecounter++
+						$item = New-Object PSObject
+						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
+						$item | Add-Member -type NoteProperty -Name 'Times' -Value $times[$timecounter]
+						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventname
+						$info += $item
+						$punc = 7
+						$timecounter++
+					}
+				}
+			}
+		}
+		$returnres = $info | Sort-Object @{ Expression = { $_.Times }; Ascending = $true }
+		Return $returnres
+	}
+	Else
+	{
+		$noevents = "NoEvents"
+		Return $noevents
+	}
 }
 
 function Update-ComboBox
@@ -369,7 +398,7 @@ function Error-CheckDateTime ($date, $alternatetime)
 		$subtime = $time[1] -split " "
 		If ($subtime[1] -eq $null)
 		{
-			$time.Add(($subtime.Substring(2, 2)).ToUpper())
+			$junk = $time.Add(($subtime.Substring(2, 2)).ToUpper())
 			$time[1] = ($subtime.Substring(0, 2))
 		}
 		Else
@@ -399,7 +428,7 @@ function Error-CheckDateTime ($date, $alternatetime)
 		$datetest[2] = "0" + $datetest[2]
 	}
 	$date = $datetest[0] + "-" + $datetest[1] + "-" + $datetest[2]
-	$realdate = $date + "T00:00:00"
+	$realdate = $date + "T00%3A00%3A00"
 	$results = @("date","time")
 	$results[0] = $realdate
 	$results[1] = $currenttime
