@@ -434,3 +434,231 @@ function Error-CheckDateTime ($date, $alternatetime)
 	$results[1] = $currenttime
 	Return $results
 }
+
+function Get-RoomCardActs ($locid, $startdate, $enddate)
+{
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
+	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,LocationId&filter="
+	$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(LocationId%20in%20(%22" + $locid + "%22)))"
+	$bi = $baseurl + $filters
+	$results = Invoke-WebRequest -URI $bi -WebSession $session
+	$act = @()
+	$acts = $results.Content
+	$dur = $acts.Length
+	For ($i = 0; $i -lt $dur; $i++)
+	{
+		If ($acts[$i] -eq "[")
+		{
+			If ($acts[$i + 1] -eq "[")
+			{
+				$st = ($i + 1)
+			}
+			Else
+			{
+				$st = $i
+			}
+		}
+		Elseif ($acts[$i] -eq "]")
+		{
+			If ($acts[$i + 1] -eq "]")
+			{
+				$en = ($i - $st) + 1
+				$act += $acts.Substring($st, $en)
+				$i = ($i + 1)
+			}
+			Else
+			{
+				$en = ($i - $st) + 1
+				$act += $acts.Substring($st, $en)
+			}
+		}
+	}
+	If ($act -ne "[]")
+	{
+		$times = ($act | Select-String -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value }).Split(",")
+		$info = @()
+		$fname = @()
+		$eventnames = @()
+		$timecounter = 0
+		$datecounter = 0
+		For ($s = 0; $s -lt $act.Length; $s++)
+		{
+			$ex = $act[$s].ToString()
+			$punc = 0
+			While ($punc -le 8)
+			{
+				For ($i = 0; $i -lt ($ex.Length); $i++)
+				{
+					If ($ex[$i] -eq '"' -And $punc -lt 1)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 1)
+					{
+						$en = ($i - $st)
+						$first = $ex.SubString($st, $en)
+						$punc++
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 2)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 3)
+					{
+						$en = ($i - $st)
+						$last = $ex.SubString($st, $en)
+						$fname += $first + " " + $last
+						$punc++
+					}
+					ElseIf ($ex[$i] -eq '"' -And $punc -eq 4)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 5)
+					{
+						$punc++
+						$en = ($i - $st)
+						$eventnames += $ex.SubString($st, $en)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 6)
+					{
+						$punc++
+						$st = ($i + 1)
+					}
+					Elseif ($ex[$i] -eq '"' -And $punc -eq 7)
+					{
+						$en = ($i - $st)
+						$eventdate = $ex.SubString($st, $en)
+						[datetime]$tempdate = $eventdate
+						$item = New-Object PSObject
+						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
+						$item | Add-Member -type NoteProperty -Name 'Times' -Value [convert]::ToInt32($times[$timecounter],10)
+						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventnames[$datecounter]
+						$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $tempdate.DayOfWeek
+						$info += $item
+						$timecounter++
+						$item = New-Object PSObject
+						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
+						$item | Add-Member -type NoteProperty -Name 'Times' -Value [convert]::ToInt32($times[$timecounter],10)
+						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventnames[$datecounter]
+						$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $tempdate.DayOfWeek
+						$info += $item
+						$punc = 9
+						$timecounter++
+						$datecounter++
+					}
+				}
+			}
+		}
+		$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+		$infobackup = $info
+		$info = @()
+		Foreach ($day in $daysofweek)
+		{
+			$info += $infobackup | Sort-Object @{ Expression = { $_.EventDate }; Ascending = $true } | Where-Object { $_.EventDate -eq $day } | Sort-Object @{ Expression = { $_.Times }; Ascending = $true }
+		}
+		Return $info
+	}
+	Else
+	{
+		$noevents = "NoEvents"
+		Return $noevents
+	}
+}
+
+function Update-Check
+{
+	$exepath = Get-ScriptDirectory
+	$exepath = $exepath + "\Astra Assist.exe"
+	$iv = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exepath).FileVersion
+	If ($iv.Length -gt 5)
+	{
+		$iv = $iv.SubString(0, 5)
+	}
+	$baseurl = "https://sheets.googleapis.com/v4/spreadsheets/1ewVNrW141HMNX3wxPej2MF4sLZE_HswCQSktnzjsAvA/values/A2:B2?key=AIzaSyD_-tGA6eLf4zRi1c8HnafMhcPksa2XV-E"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$results = Invoke-WebRequest -URI $baseurl -WebSession $session
+	[array]$dat = ($results.Content) | ConvertFrom-Json | Foreach-Object { $_.Values }
+	$cv = $dat[0]
+	$cvlink = $dat[1]
+	If ($cv -gt $iv)
+	{
+		$wshell = New-Object -ComObject Wscript.Shell
+		$btclicked3 = $wshell.Popup("Notice: There is a newer version of Astra Assist available!
+    Installed Version: " + $iv + "
+    Update Version: " + $cv + "
+    Click 'Yes' below if you would like to Update now. Or click 'No' if you do not.", 0, "New Version Detected", 0x4)
+		If ($btclicked3 -eq "6")
+		{
+			$dpath = $env:USERPROFILE
+			$dpath = $dpath + "\Setup_AstraAssist.msi"
+			Invoke-WebRequest -Uri $cvlink -OutFile $dpath
+		}
+	}
+}
+
+function Event-Request ($room)
+{
+	$script =
+	{
+		If ($args[1] -eq "Academic")
+		{
+			$url = "https://astra.carthage.edu/Astra/events/EventReqForm.aspx?id=7fc3ce0e-16c0-41b1-965c-27cf0308c9f4&returnURL=#viewmode%3Dedit"
+		}
+		Elseif ($args[1] -eq "TWC")
+		{
+			$url = "https://astra.carthage.edu/Astra/events/EventReqForm.aspx?id=31268914-8f5f-4eeb-bf14-81aa44d3a034&returnURL=#viewmode%3Dedit"
+		}
+		Elseif ($args[1] -eq "HL")
+		{
+			$url = "https://astra.carthage.edu/Astra/events/EventReqForm.aspx?id=e820e441-db2b-42bb-aeab-d07199537204&returnURL=#viewmode%3Dedit"
+		}
+		Elseif ($args[1] -eq "Chapel")
+		{
+			$url = "https://astra.carthage.edu/Astra/events/EventReqForm.aspx?id=6d0d12de-96aa-499f-b9e3-e914bf82641d&returnURL=#viewmode%3Dedit"
+		}
+		Elseif ($args[1] -eq "TARC")
+		{
+			$url = "https://astra.carthage.edu/Astra/events/EventReqForm.aspx?id=21ed4b05-5bce-4d0e-8ba6-c53be93a9b43&returnURL=#viewmode%3Dedit"
+		}
+		
+		
+		$ie = New-Object -com InternetExplorer.Application
+		$username = $args[0].UserName
+		$password = $args[0].GetNetworkCredential().Password
+		$ie.navigate('https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx')
+		Write-Progress -Activity "Running" -PercentComplete 33
+		While ($ie.Busy -eq $true)
+		{
+			Start-Sleep -Milliseconds 1000
+		}
+		$ie.Document.GetElementById("PortalContentMaster_TopLoginControl_MainLogin_UserName").Value = $username
+		$ie.Document.GetElementById("PortalContentMaster_TopLoginControl_MainLogin_Password").Value = $password
+		$ie.Document.getElementById("PortalContentMaster_TopLoginControl_MainLogin_LoginButton").Click()
+		Write-Progress -Activity "Running" -PercentComplete 60
+		While ($ie.Busy -eq $true)
+		{
+			Start-Sleep -Milliseconds 1000
+		}
+		$ie.Navigate($url)
+		Write-Progress -Activity "Running" -PercentComplete 80
+		While ($ie.Busy -eq $true)
+		{
+			Start-Sleep -Milliseconds 1000
+		}
+		Write-Progress -Activity "Running" -PercentComplete 100
+		$ie.Visible = $true
+	}
+	If ($cred -eq $null)
+	{
+		$global:cred = Get-Credential
+	}
+	Start-Job $script -ArgumentList $cred,$room
+}
