@@ -83,102 +83,66 @@ function Get-CurrentTime
 
 
 
-function Get-RoomAvailability ($sectiontime, $currenttime)
+function Convert-ToMinutes ($data)
 {
-	$i = 0
-	$nextclass = @("Available", "Approaching Class", "Start Time", "End Time", "Index")
-	$nextclass[0] = "None"
-	$nextclass[1] = "None"
-	$nextclass[2] = "0"
-	$nextclass[3] = "0"
-	$nextclass[4] = "0"
-	$times = $sectiontime.Length
-	$frames = $sectiontime.Length /2
-	For ($i = 0; $i -le ($times - 1); $i++)
+	$d = ($data -split " ").Split(':')
+	If ($d[2] -eq "PM")
 	{
-		If ($currenttime -ge $sectiontime[$i])
+		$hours = [int]$d[0] + 12
+	}
+	Else
+	{
+		$hours = [int]$d[0]
+	}
+	$minutes = [int]$d[1] + ($hours * 60)
+	Return $minutes
+}
+
+function Get-RoomAvailability ($events, $currenttime)
+{
+	$eventbackup = $events
+	$times = @()
+	For ($i = 0; $i -le $eventbackup.Length; $i++)
+	{
+		If ($i -ne $eventbackup.Length)
 		{
-			If ($currenttime -eq $sectiontime[$i])
-			{
-				If ($i -eq ($times - 2))
-				{
-					$nextclass[0] = "False"
-					$nextclass[1] = "False"
-					$nextclass[2] = "0"
-					$nextclass[3] = [int]($sectiontime[$i + 1])
-					$nextclass[4] = ($i)
-					$i = $times
-				}
-				elseif ($i -eq ($times - 1))
-				{
-					$nextclass[0] = "True"
-					$nextclass[1] = "False"
-					$nextclass[2] = "0"
-					$nextclass[3] = "0"
-					$nextclass[4] = ($i)
-					$i = $times
-				}
-				elseif ($i % 2 -eq 0)
-				{
-					$nextclass[0] = "False"
-					$nextclass[1] = "True"
-					$nextclass[2] = [int]($sectiontime[$i + 3])
-					$nextclass[3] = [int]($sectiontime[$i + 2])
-					$nextclass[4] = ($i)
-					$i = $times
-				}
-				elseif ($i % 2 -eq 1)
-				{
-					$nextclass[0] = "True"
-					$nextclass[1] = "True"
-					$nextclass[2] = [int]($sectiontime[$i + 1])
-					$nextclass[3] = [int]($sectiontime[$i + 2])
-					$nextclass[4] = ($i)
-					$i = $times
-				}
-			}
+			$item = New-Object PSObject
+			$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.StartTime[$i])
+			$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
+			$times += $item
+			$item = New-Object PSObject
+			$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.EndTime[$i])
+			$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
+			$times += $item
 		}
-		elseif ($currenttime -lt $sectiontime[$i])
+		Else
 		{
-			If ($i -eq ($times - 2))
-			{
-				$nextclass[0] = "True"
-				$nextclass[1] = "True"
-				$nextclass[2] = [int]($sectiontime[$i])
-				$nextclass[3] = [int]($sectiontime[$i + 1])
-				$nextclass[4] = ($i)
-				$i = $times
-			}
-			elseif ($i -eq ($times - 1))
-			{
-				$nextclass[0] = "False"
-				$nextclass[1] = "False"
-				$nextclass[2] = "0"
-				$nextclass[3] = [int]($sectiontime[$i])
-				$nextclass[4] = ($i)
-				$i = $times
-			}
-			elseif ($i % 2 -eq 0)
-			{
-				$nextclass[0] = "True"
-				$nextclass[1] = "True"
-				$nextclass[2] = [int]($sectiontime[$i])
-				$nextclass[3] = [int]($sectiontime[$i + 1])
-				$nextclass[4] = ($i)
-				$i = $times
-			}
-			elseif ($i % 2 -eq 1)
-			{
-				$nextclass[0] = "False"
-				$nextclass[1] = "True"
-				$nextclass[2] = [int]($sectiontime[$i + 1])
-				$nextclass[3] = [int]($sectiontime[$i])
-				$nextclass[4] = ($i)
-				$i = $times
-			}
+			$item = New-Object PSObject
+			$item | Add-Member -Type NoteProperty -Name 'Times' -Value ([int]$currenttime)
+			$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'Yes'
+			$times += $item
 		}
 	}
-	Return $nextclass
+	$sortedtimes = $times | Sort-Object @{ Expression = { $_.Times }; Ascending = $true }
+	For ($i = 0; $i -lt $sortedtimes.Length; $i++)
+	{
+		If ($sortedtimes.CurrentTime[$i] -eq "Yes")
+		{
+			$tind = $i
+		}
+	}
+	$ava = @()
+	If (($tind % 2) -eq 0)
+	{
+		$ava += "Yes"
+		$ava += ($tind - $eventbackup.Length)
+	}
+	Else
+	{
+		$ava += "No"
+		$ava += ($tind - $eventbackup.Length) + 1
+	}
+	Return $ava
 }
 
 
@@ -195,113 +159,40 @@ function Get-LocationID ($buildingcode, $roomnumber)
 
 function Get-TodaysActivities ($loc, $date)
 {
-	$sectionmeetings = @()
 	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
 	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
 	$cookies = $websession.Cookies.GetCookies($cookieurl)
 	$session.Cookies.Add($cookies)
-	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,LocationId&filter="
-	$filters = "(((StartDate%3E%3D%22" + $date + "%22)%26%26(EndDate%3C%3D%22" + $date + "%22))%26%26(LocationId%20in%20(%22" + $locid + "%22)))"
+	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartMinute,EndMinute&filter="
+	$filters = "(((StartDate%3E%3D%22" + $date + "%22)%26%26(EndDate%3C%3D%22" + $date + "%22))%26%26(LocationId%20in%20(%22" + $loc + "%22)))"
 	$bi = $baseurl + $filters
-	$results = Invoke-WebRequest -URI $bi -WebSession $session
-	$act = @()
-	$acts = $results.Content
-	$dur = $acts.Length
-	For ($i = 0; $i -lt $dur; $i++)
+	$results = Invoke-WebRequest -URI $bi -WebSession $session | ConvertFrom-Json
+	$info = @()
+	If ($results.data -ne $null)
 	{
-		If ($acts[$i] -eq "[")
+		For ($i = 0; $i -lt $results.data.length; $i++)
 		{
-			If ($acts[$i + 1] -eq "[")
-			{
-				$st = ($i + 1)
-			}
-			Else
-			{
-				$st = $i
-			}
+			$dat = ($results.data[$i] -split "'n" | ? { $_ }).Trim()
+			$item = New-Object PSObject
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $dat[2]
+			$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value ($dat[0] + " " + $dat[1])
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value ([int]$dat[3])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value ([int]$dat[4])
+			$info += $item
 		}
-		Elseif ($acts[$i] -eq "]")
+		$info2 = $info | Sort-Object @{ Expression = { $_.StartTime }; Ascending = $true }
+		$infofinal = @()
+		For ($i = 0; $i -lt $info.Length; $i++)
 		{
-			If ($acts[$i + 1] -eq "]")
-			{
-				$en = ($i - $st) + 1
-				$act += $acts.Substring($st, $en)
-				$i = ($i + 1)
-			}
-			Else
-			{
-				$en = ($i - $st) + 1
-				$act += $acts.Substring($st, $en)
-			}
+			$item = New-Object PSObject
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info2.EventName[$i]
+			$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $info2.InstructorName[$i]
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info2.StartTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info2.EndTime[$i])
+			$infofinal += $item
 		}
-	}
-	If ($act -ne "[]")
-	{
-		$times = ($act | Select-String -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value }).Split(",")
-		$info = @()
-		$fname = @()
-		$eventnames = @()
-		$timecounter = 0
-		For ($s = 0; $s -lt $act.Length; $s++)
-		{
-			$ex = $act[$s].ToString()
-			$punc = 0
-			While ($punc -le 6)
-			{
-				For ($i = 0; $i -lt ($ex.Length); $i++)
-				{
-					If ($ex[$i] -eq '"' -And $punc -lt 1)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 1)
-					{
-						$en = ($i - $st)
-						$first = $ex.SubString($st, $en)
-						$punc++
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 2)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 3)
-					{
-						$en = ($i - $st)
-						$last = $ex.SubString($st, $en)
-						$fname += $first + " " + $last
-						$punc++
-					}
-					ElseIf ($ex[$i] -eq '"' -And $punc -eq 4)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 5)
-					{
-						$en = ($i - $st)
-						$eventname = $ex.SubString($st, $en)
-						$item = New-Object PSObject
-						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
-						$item | Add-Member -type NoteProperty -Name 'Times' -Value $times[$timecounter]
-						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventname
-						$info += $item
-						$timecounter++
-						$item = New-Object PSObject
-						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
-						$item | Add-Member -type NoteProperty -Name 'Times' -Value $times[$timecounter]
-						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventname
-						$info += $item
-						$punc = 7
-						$timecounter++
-					}
-				}
-			}
-		}
-		$returnres = $info | Sort-Object @{ Expression = { $_.Times }; Ascending = $true }
-		Return $returnres
+		Return $infofinal
 	}
 	Else
 	{
@@ -435,136 +326,78 @@ function Error-CheckDateTime ($date, $alternatetime)
 	Return $results
 }
 
-function Get-RoomCardActs ($locid, $startdate, $enddate)
+function Get-RoomCardActs ($startdate, $enddate, $bldcd, $selbld)
 {
 	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
 	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
 	$cookies = $websession.Cookies.GetCookies($cookieurl)
 	$session.Cookies.Add($cookies)
-	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,LocationId&filter="
-	$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(LocationId%20in%20(%22" + $locid + "%22)))"
-	$bi = $baseurl + $filters
-	$results = Invoke-WebRequest -URI $bi -WebSession $session
-	$act = @()
-	$acts = $results.Content
-	$dur = $acts.Length
-	For ($i = 0; $i -lt $dur; $i++)
+	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,BuildingCode,RoomNumber&filter="
+	If ($bldcd.Length -gt 10)
 	{
-		If ($acts[$i] -eq "[")
-		{
-			If ($acts[$i + 1] -eq "[")
-			{
-				$st = ($i + 1)
-			}
-			Else
-			{
-				$st = $i
-			}
-		}
-		Elseif ($acts[$i] -eq "]")
-		{
-			If ($acts[$i + 1] -eq "]")
-			{
-				$en = ($i - $st) + 1
-				$act += $acts.Substring($st, $en)
-				$i = ($i + 1)
-			}
-			Else
-			{
-				$en = ($i - $st) + 1
-				$act += $acts.Substring($st, $en)
-			}
-		}
+		$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(LocationId%20in%20(%22" + $bldcd + "%22)))"
 	}
-	If ($act -ne "[]")
+	Else
 	{
-		$times = ($act | Select-String -Pattern '\d{2,4}[,]\d{2,4}' -AllMatches | %{ $_.Matches } | %{ $_.Value }).Split(",")
+		$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(BuildingCode%20in%20(%22" + $bldcd + "%22)))"
+	}
+	$bi = $baseurl + $filters
+	$results = Invoke-WebRequest -URI $bi -WebSession $session | ConvertFrom-Json
+	If ($results.Data -ne $null)
+	{
 		$info = @()
-		$fname = @()
-		$eventnames = @()
-		$timecounter = 0
-		$datecounter = 0
-		For ($s = 0; $s -lt $act.Length; $s++)
+		For ($i = 0; $i -lt $results.data.length; $i++)
 		{
-			$ex = $act[$s].ToString()
-			$punc = 0
-			While ($punc -le 8)
+			$dat = ($results.data[$i] -split "'n" | ? { $_ }).Trim()
+			If ($dat.Length -eq $results.data[$i].Length)
 			{
-				For ($i = 0; $i -lt ($ex.Length); $i++)
-				{
-					If ($ex[$i] -eq '"' -And $punc -lt 1)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 1)
-					{
-						$en = ($i - $st)
-						$first = $ex.SubString($st, $en)
-						$punc++
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 2)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 3)
-					{
-						$en = ($i - $st)
-						$last = $ex.SubString($st, $en)
-						$fname += $first + " " + $last
-						$punc++
-					}
-					ElseIf ($ex[$i] -eq '"' -And $punc -eq 4)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 5)
-					{
-						$punc++
-						$en = ($i - $st)
-						$eventnames += $ex.SubString($st, $en)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 6)
-					{
-						$punc++
-						$st = ($i + 1)
-					}
-					Elseif ($ex[$i] -eq '"' -And $punc -eq 7)
-					{
-						$en = ($i - $st)
-						$eventdate = $ex.SubString($st, $en)
-						[datetime]$tempdate = $eventdate
-						$item = New-Object PSObject
-						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
-						$item | Add-Member -type NoteProperty -Name 'Times' -Value [convert]::ToInt32($times[$timecounter],10)
-						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventnames[$datecounter]
-						$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $tempdate.DayOfWeek
-						$info += $item
-						$timecounter++
-						$item = New-Object PSObject
-						$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $fname[$s]
-						$item | Add-Member -type NoteProperty -Name 'Times' -Value [convert]::ToInt32($times[$timecounter],10)
-						$item | Add-Member -type NoteProperty -Name 'EventName' -Value $eventnames[$datecounter]
-						$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $tempdate.DayOfWeek
-						$info += $item
-						$punc = 9
-						$timecounter++
-						$datecounter++
-					}
-				}
+				$item = New-Object PSObject
+				$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value ($dat[0] + " " + $dat[1])
+				$item | Add-Member -type NoteProperty -Name 'EventName' -Value $dat[2]
+				$item | Add-Member -type NoteProperty -Name 'StartTime' -Value ([int]$dat[5])
+				$item | Add-Member -type NoteProperty -Name 'EndTime' -Value ([int]$dat[6])
+				$item | Add-Member -type NoteProperty -Name 'EventDate' -Value ([datetime]$dat[3]).DayOfWeek
+				$item | Add-Member -type NoteProperty -Name 'RoomName' -Value ($dat[7] + $dat[8])
+				$info += $item
+			}
+			Else
+			{
+				$item = New-Object PSObject
+				$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value ("Not Available")
+				$item | Add-Member -type NoteProperty -Name 'EventName' -Value $dat[0]
+				$item | Add-Member -type NoteProperty -Name 'StartTime' -Value ([int]$dat[3])
+				$item | Add-Member -type NoteProperty -Name 'EndTime' -Value ([int]$dat[4])
+				$item | Add-Member -type NoteProperty -Name 'EventDate' -Value ([datetime]$dat[1]).DayOfWeek
+				$item | Add-Member -type NoteProperty -Name 'RoomName' -Value ($dat[5] + $dat[6])
+				$info += $item
 			}
 		}
-		$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+		$roomlist = $info.RoomName | Sort-Object | Get-Unique -asString
 		$infobackup = $info
 		$info = @()
-		Foreach ($day in $daysofweek)
+		$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+		Foreach ($room in $roomlist)
 		{
-			$info += $infobackup | Sort-Object @{ Expression = { $_.EventDate }; Ascending = $true } | Where-Object { $_.EventDate -eq $day } | Sort-Object @{ Expression = { $_.Times }; Ascending = $true }
+			Foreach ($day in $daysofweek)
+			{
+				$info += $infobackup | Sort-Object @{ Expression = { $_.RoomName }; Ascending = $true } | Where-Object { $_.RoomName -eq $room } | Sort-Object @{ Expression = { $_.EventDate }; Ascending = $true } | Where-Object { $_.EventDate -eq $day } | Sort-Object @{ Expression = { $_.StartTime }; Ascending = $true }
+			}
 		}
-		Return $info
+		$infofinal = @()
+		For ($i = 0; $i -lt $info.Length; $i++)
+		{
+			$item = New-Object PSObject
+			$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $info.InstructorName[$i]
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info.EventName[$i]
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info.StartTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info.EndTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $info.EventDate[$i]
+			$item | Add-Member -type NoteProperty -Name 'RoomName' -Value $info.RoomName[$i]
+			$item | Add-Member -type NoteProperty -Name 'BuildingName' -Value $selbld
+			$infofinal += $item
+		}
+		Return $infofinal
 	}
 	Else
 	{
@@ -661,4 +494,257 @@ function Event-Request ($room)
 		$global:cred = Get-Credential
 	}
 	Start-Job $script -ArgumentList $cred,$room
+}
+
+function Get-InstructorData ($id)
+{
+	$datestring = Get-Date -Format o
+	$datework = Get-Date
+	$day = $datework.DayOfWeek
+	If ($day -eq "Sunday")
+	{
+		$st = 0; $en = 6
+	}
+	Elseif ($day -eq "Monday")
+	{
+		$st = -1; $en = 5
+	}
+	Elseif ($day -eq "Tuesday")
+	{
+		$st = -2; $en = 4
+	}
+	Elseif ($day -eq "Wednesday")
+	{
+		$st = -3; $en = 3
+	}
+	Elseif ($day -eq "Thursday")
+	{
+		$st = -4; $en = 2
+	}
+	Elseif ($day -eq "Friday")
+	{
+		$st = -5; $en = 1
+	}
+	Elseif ($day -eq "Saturday")
+	{
+		$st = -6; $en = 0
+	}
+	$startdate = ((((Get-Date).AddDays($st)).GetDateTimeFormats('s') | Out-String).SubString(0, 10) + "T00%3A00%3A00")
+	$enddate = ((((Get-Date).AddDays($en)).GetDateTimeFormats('s') | Out-String).SubString(0, 10) + "T00%3A00%3A00")
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
+	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=BuildingCode,RoomNumber,ActivityName,StartDate,EndDate,StartMinute,EndMinute&filter="
+	$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructorId%20in%20(%22" + $id + "%22)))"
+	$bi = $baseurl + $filters
+	$results = Invoke-WebRequest -URI $bi -WebSession $session | ConvertFrom-Json
+	$info = @()
+	If ($results.Data -ne $null)
+	{
+		For ($i = 0; $i -lt $results.data.length; $i++)
+		{
+			$dat = ($results.data[$i] -split "'n" | ? { $_ }).Trim()
+			$item = New-Object PSObject
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $dat[2]
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value ([int]$dat[5])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value ([int]$dat[6])
+			$item | Add-Member -type NoteProperty -Name 'RoomName' -Value ($dat[0] + $dat[1])
+			$item | Add-Member -type NoteProperty -Name 'EventDate' -Value ([datetime]$dat[3]).DayOfWeek
+			$info += $item
+		}
+		$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+		$infobackup = $info
+		$info = @()
+		Foreach ($day in $daysofweek)
+		{
+			$info += $infobackup | Sort-Object @{ Expression = { $_.EventDate }; Ascending = $true } | Where-Object { $_.EventDate -eq $day } | Sort-Object @{ Expression = { $_.StartTime }; Ascending = $true }
+		}
+		$infofinal = @()
+		For ($i = 0; $i -lt $info.Length; $i++)
+		{
+			$item = New-Object PSObject
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info.EventName[$i]
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info.StartTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info.EndTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'RoomName' -Value $info.RoomName[$i]
+			$item | Add-Member -type NoteProperty -Name 'EventDate' -Value $info.EventDate[$i]
+			$infofinal += $item
+		}
+		Return $infofinal
+	}
+	Else
+	{
+		$noevents = "NoEvents"
+		Return $noevents
+	}
+}
+
+function Gen-WeekPeriods
+{
+	$datestring = Get-Date -Format o
+	$datework = Get-Date
+	$day = $datework.DayOfWeek
+	If ($day -eq "Sunday")
+	{
+		$st = 0; $en = 6
+	}
+	Elseif ($day -eq "Monday")
+	{
+		$st = -1; $en = 5
+	}
+	Elseif ($day -eq "Tuesday")
+	{
+		$st = -2; $en = 4
+	}
+	Elseif ($day -eq "Wednesday")
+	{
+		$st = -3; $en = 3
+	}
+	Elseif ($day -eq "Thursday")
+	{
+		$st = -4; $en = 2
+	}
+	Elseif ($day -eq "Friday")
+	{
+		$st = -5; $en = 1
+	}
+	Elseif ($day -eq "Saturday")
+	{
+		$st = -6; $en = 0
+	}
+	$weeklist = @()
+	$wks = $st
+	$wke = $en
+	For ($i = 0; $i -le 12; $i++)
+	{
+		$item = New-Object PSObject
+		$item | Add-Member -Type NoteProperty -Name 'WeekStart' -Value (($datework.AddDays($wks)).Date | Out-String).SubString(0, ((($datework.AddDays($wks)).Date | Out-String).Length - 18))
+		$item | Add-Member -Type NoteProperty -Name 'WeekEnd' -Value (($datework.AddDays($wke)).Date | Out-String).SubString(0, ((($datework.AddDays($wke)).Date | Out-String).Length - 18))
+		$item | Add-Member -Type NoteProperty -Name 'WeekList' -Value ((($datework.AddDays($wks)).Date | Out-String).SubString(0, ((($datework.AddDays($wks)).Date | Out-String).Length - 18)) + " To " + (($datework.AddDays($wke)).Date | Out-String).SubString(0, ((($datework.AddDays($wke)).Date | Out-String).Length - 18)))
+		$weeklist += $item
+		$wks = $wks + 7
+		$wke = $wke + 7
+	}
+	Return $weeklist
+}
+
+function Create-RoomCards ($data, $dates, $fpath)
+{
+	$startdate = $dates[0]
+	$enddate = $dates[1]
+	$selbld = ($data.BuildingName[0]).ToString()
+	$fmtdta = @()
+	For ($i = 0; $i -lt $data.Length; $i++)
+	{
+		$times = $data.StartTime[$i].ToString() + " - " + $data.EndTime[$i].ToString()
+		$item = New-Object PSObject
+		$item | Add-Member -Type NoteProperty -Name 'Times' -Value $times
+		$item | Add-Member -Type NoteProperty -Name 'Event Name' -Value $data.EventName[$i]
+		$item | Add-Member -Type NoteProperty -Name 'Instructor/Contact' -Value $data.InstructorName[$i]
+		$item | Add-Member -Type NoteProperty -Name 'Day' -Value $data.EventDate[$i]
+		$item | Add-Member -Type NoteProperty -Name 'RoomName' -Value $data.RoomName[$i]
+		$fmtdta += $item
+	}
+	
+	$a = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<style>
+    body {
+        background-color: white;
+        font-family:      "Calibri";
+    }
+
+    table {
+        border-width:     1px;
+        border-style:     solid;
+        border-color:     black;
+        border-collapse:  collapse;
+        width: 100%;
+    }
+
+    th {
+        border-width:     1px;
+        padding:          5px;
+        border-style:     solid;
+        border-color:     black;
+        background-color: #98C6F3;
+				page-break-inside: avoid;
+    }
+
+    td {
+        border-width:     1px;
+        padding:          5px;
+        border-style:     solid;
+        border-color:     black;
+        background-color: White;
+				page-break-inside: avoid;
+    }
+
+    tr {
+        text-align:       left;
+				page-break-inside: avoid;
+		
+    }
+	h1 {
+		margin-bottom: 1px;
+	}
+	h3 {
+		margin-bottom: 1px;
+		margin-top: 1px;
+	}
+	.pagebreak {
+	page-break-before: always;
+}
+</style>
+</head><body>'
+	$roomlist = $data.RoomName | Sort-Object | Get-Unique -asString
+	$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+	Foreach ($room in $roomlist)
+	{
+		$rmn = $room.SubString(($bldcd.Length), ($room.Length - ($bldcd.Length)))
+		$a += '<center><h1>' + $selbld + " " + $rmn + '</h1></center>'
+		$a += '<center><h3>All Activities from ' + $startdate + " to " + $enddate + '</h3></center>
+		<table>
+'
+		$temp1 = $fmtdta | Where-Object { $_.RoomName -eq $room } | Select "Times", "Event Name", "Instructor/Contact", "Day"
+		Foreach ($day in $daysofweek)
+		{
+			If (($temp1 | Where-Object { $_.Day -eq $day }) -ne $null)
+			{
+				$a += '<colgroup><col/>
+		<tr><th style="background-color:white;border-color:white;border-bottom-color:black"><H3>' + $day + '</H3></th></tr>'
+				$a += '<colgroup><col/><col/><col/></colgroup>
+		<tr><th>Times</th><th>Event Name</th><th>Instructor/Contact</th></tr>
+'
+				[array]$temp2 = $temp1 | Where-Object { $_.Day -eq $day } | Select "Times", "Event Name", "Instructor/Contact"
+				For ($i = 0; $i -lt $temp2.Length; $i++)
+				{
+					If ($temp2.Length -ne 1)
+					{
+						$time = $temp2.Times[$i]
+						$actname = $temp2."Event Name"[$i]
+						$instname = $temp2."Instructor/Contact"[$i]
+						$a += '<tr><td>' + $time + '</td><td>' + $actname + '</td><td>' + $instname + '</td></tr>
+'
+					}
+					Else
+					{
+						$time = $temp2.Times
+						$actname = $temp2."Event Name"
+						$instname = $temp2."Instructor/Contact"
+						$a += '<tr><td>' + $time + '</td><td>' + $actname + '</td><td>' + $instname + '</td></tr>
+'
+					}
+				}
+			}
+		}
+		$a += '</table>
+		<div class="pagebreak"></div>
+'
+	}
+	$a += '	</body></html>'
+	$a | Out-File $fpath
 }
