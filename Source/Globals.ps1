@@ -408,32 +408,55 @@ function Get-RoomCardActs ($startdate, $enddate, $bldcd, $selbld)
 
 function Update-Check
 {
-	$exepath = Get-ScriptDirectory
-	$exepath = $exepath + "\Astra Assist.exe"
-	$iv = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exepath).FileVersion
-	If ($iv.Length -gt 5)
+	$res = Test-Path ((Get-ScriptDirectory) + "\UpdateCheck.txt")
+	If ($res -eq $true)
 	{
-		$iv = $iv.SubString(0, 5)
+		[int]$upchkcnt = Get-Content ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 	}
-	$baseurl = "https://sheets.googleapis.com/v4/spreadsheets/1ewVNrW141HMNX3wxPej2MF4sLZE_HswCQSktnzjsAvA/values/A2:B2?key=AIzaSyD_-tGA6eLf4zRi1c8HnafMhcPksa2XV-E"
-	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-	$results = Invoke-WebRequest -URI $baseurl -WebSession $session
-	[array]$dat = ($results.Content) | ConvertFrom-Json | Foreach-Object { $_.Values }
-	$cv = $dat[0]
-	$cvlink = $dat[1]
-	If ($cv -gt $iv)
+	If ($upchkcnt -eq $null -or $upchkcnt -ge 5)
 	{
-		$wshell = New-Object -ComObject Wscript.Shell
-		$btclicked3 = $wshell.Popup("Notice: There is a newer version of Astra Assist available!
-    Installed Version: " + $iv + "
-    Update Version: " + $cv + "
-    Click 'Yes' below if you would like to Update now. Or click 'No' if you do not.", 0, "New Version Detected", 0x4)
-		If ($btclicked3 -eq "6")
+		Remove-Item -Path ((Get-ScriptDirectory) + "\UpdateCheck.txt") -Force
+		$exepath = Get-ScriptDirectory
+		$exepath = $exepath + "\Astra Assist.exe"
+		$iv = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exepath).FileVersion
+		If ($iv.Length -gt 5)
 		{
-			$dpath = $env:USERPROFILE
-			$dpath = $dpath + "\Setup_AstraAssist.msi"
-			Invoke-WebRequest -Uri $cvlink -OutFile $dpath
+			$iv = $iv.SubString(0, 5)
 		}
+		$baseurl = "https://sheets.googleapis.com/v4/spreadsheets/1ewVNrW141HMNX3wxPej2MF4sLZE_HswCQSktnzjsAvA/values/A2:B2?key=AIzaSyD_-tGA6eLf4zRi1c8HnafMhcPksa2XV-E"
+		$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+		$results = Invoke-WebRequest -URI $baseurl -WebSession $session
+		[array]$dat = $results.Content | ConvertFrom-Json | Foreach-Object { $_.Values }
+		$cv = $dat[0]
+		$cvlink = $dat[1]
+		If ($cv -gt $iv)
+		{
+			$wshell = New-Object -ComObject Wscript.Shell
+			$btclicked3 = $wshell.Popup("Notice: There is a newer version of Astra Assist available!
+	    Installed Version: " + $iv + "
+	    Update Version: " + $cv + "
+	    Click 'Yes' below if you would like to Update now. Or click 'No' if you do not.", 0, "New Version Detected", 0x4)
+			If ($btclicked3 -eq "6")
+			{
+				$dpath = $env:USERPROFILE
+				$dpath = $dpath + "\Setup_AstraAssist.msi"
+				Invoke-WebRequest -Uri $cvlink -OutFile $dpath
+				$scriptblock = 'Start-Process ("$env:USERPROFILE" + "\Setup_AstraAssist.msi") -Wait; Remove-Item -Path ("$env:USERPROFILE" + "\AAUpdate.ps1") -Force; Remove-Item -Path ("$env:USERPROFILE" + "\Setup_AstraAssist.msi") -Force;Start-Process ("C:\Program Files (x86)\Carthage College\Astra Assist\Astra Assist.exe")'
+				$scriptblock | Out-File ("$env:USERPROFILE" + "\AAUpdate.ps1")
+				Start-Process powershell -Argumentlist "cd $env:USERPROFILE;&./AAUpdate.ps1" -WindowStyle Hidden
+				$formAstraAssist.Close()
+			}
+			Else
+			{
+				$up = 1
+				$up | Out-File ((Get-ScriptDirectory) + "\UpdateCheck.txt")
+			}
+		}
+	}
+	Else
+	{
+		$upchkcnt = $upchkcnt + 1
+		$upchkcnt | Out-File ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 	}
 }
 
