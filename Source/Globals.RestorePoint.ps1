@@ -103,7 +103,7 @@ function Convert-ToMinutes ($data)
 {
 	#Takes in Time data in "12:50 PM" Format, and returns Raw Minutes
 	$d = ($data -split " ").Split(':')
-	If ($d[2] -eq "PM" -and $d[0] -ne 12)
+	If ($d[2] -eq "PM")
 	{
 		$hours = [int]$d[0] + 12
 	}
@@ -121,36 +121,24 @@ function Get-RoomAvailability ($events, $currenttime)
 	#Returns an array, where the first cell is either "Yes" or "No", indicating if the room is available.
 	#The second value in the array is only filled if there are still scheduled events after the current time was found.
 	#The second value is the Start Time of the next event if the Room is available, or the End Time of the Current Event if not.
-	[array]$eventbackup = $events
+	$eventbackup = $events
 	$times = @()
 	For ($i = 0; $i -le $eventbackup.Length; $i++)	#This For loop reconfigures the event data to a better format.
 	{
 		If ($i -ne $eventbackup.Length)
 		{
-			If ($eventbackup.Length -eq 1)
-			{
-				$item = New-Object PSObject
-				$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.StartTime)
-				$item | Add-Member -Type NoteProperty -Name 'Position' -Value "Start"
-				$item | Add-Member -Type NoteProperty -Name 'EventName' -Value $eventbackup.EventName
-				$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
-				$times += $item
-			}
-			Else
-			{
-				$item = New-Object PSObject
-				$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.StartTime[$i])
-				$item | Add-Member -Type NoteProperty -Name 'Position' -Value "Start"
-				$item | Add-Member -Type NoteProperty -Name 'EventName' -Value $eventbackup.EventName[$i]
-				$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
-				$times += $item
-				$item = New-Object PSObject
-				$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.EndTime[$i])
-				$item | Add-Member -Type NoteProperty -Name 'Position' -Value "End"
-				$item | Add-Member -Type NoteProperty -Name 'EventName' -Value $eventbackup.EventName[$i]
-				$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
-				$times += $item
-			}
+			$item = New-Object PSObject
+			$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.StartTime[$i])
+			$item | Add-Member -Type NoteProperty -Name 'Position' -Value "Start"
+			$item | Add-Member -Type NoteProperty -Name 'EventName' -Value $eventbackup.EventName[$i]
+			$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
+			$times += $item
+			$item = New-Object PSObject
+			$item | Add-Member -Type NoteProperty -Name 'Times' -Value (Convert-ToMinutes $eventbackup.EndTime[$i])
+			$item | Add-Member -Type NoteProperty -Name 'Position' -Value "End"
+			$item | Add-Member -Type NoteProperty -Name 'EventName' -Value $eventbackup.EventName[$i]
+			$item | Add-Member -Type NoteProperty -Name 'CurrentTime' -Value 'No'
+			$times += $item
 		}
 		Else
 		{
@@ -200,6 +188,11 @@ function Get-LocationID ($buildingcode, $roomnumber)
 
 function Get-TodaysActivities ($loc, $date)
 {
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
 	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartMinute,EndMinute&filter="
 	$filters = "(((StartDate%3E%3D%22" + $date + "%22)%26%26(EndDate%3C%3D%22" + $date + "%22))%26%26(LocationId%20in%20(%22" + $loc + "%22)))"
 	$bi = $baseurl + $filters
@@ -231,25 +224,13 @@ function Get-TodaysActivities ($loc, $date)
 		}
 		$info2 = $info | Sort-Object @{ Expression = { $_.StartTime }; Ascending = $true }
 		$infofinal = @()
-		If ($info.Length -ne 1)
-		{
-			For ($i = 0; $i -lt $info.Length; $i++)
-			{
-				$item = New-Object PSObject
-				$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info2.EventName[$i]
-				$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $info2.InstructorName[$i]
-				$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info2.StartTime[$i])
-				$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info2.EndTime[$i])
-				$infofinal += $item
-			}
-		}
-		Else
+		For ($i = 0; $i -lt $info.Length; $i++)
 		{
 			$item = New-Object PSObject
-			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info2.EventName
-			$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $info2.InstructorName
-			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info2.StartTime)
-			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info2.EndTime)
+			$item | Add-Member -type NoteProperty -Name 'EventName' -Value $info2.EventName[$i]
+			$item | Add-Member -type NoteProperty -Name 'InstructorName' -Value $info2.InstructorName[$i]
+			$item | Add-Member -type NoteProperty -Name 'StartTime' -Value (Convert-Minutes $info2.StartTime[$i])
+			$item | Add-Member -type NoteProperty -Name 'EndTime' -Value (Convert-Minutes $info2.EndTime[$i])
 			$infofinal += $item
 		}
 		Return $infofinal
@@ -388,6 +369,11 @@ function Error-CheckDateTime ($date, $alternatetime)
 
 function Get-RoomCardActs ($startdate, $enddate, $bldcd, $selbld)
 {
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
 	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.FirstName,SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructor.Person.LastName,ActivityName,StartDate,EndDate,StartMinute,EndMinute,BuildingCode,RoomNumber&filter="
 	If ($bldcd.Length -gt 10)
 	{
@@ -431,7 +417,7 @@ function Get-RoomCardActs ($startdate, $enddate, $bldcd, $selbld)
 		$roomlist = $info.RoomName | Sort-Object | Get-Unique -asString
 		$infobackup = $info
 		$info = @()
-		$daysofweek = @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday")
+		$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 		Foreach ($room in $roomlist)
 		{
 			Foreach ($day in $daysofweek)
@@ -463,18 +449,14 @@ function Get-RoomCardActs ($startdate, $enddate, $bldcd, $selbld)
 
 function Update-Check
 {
-	$res = Test-Path 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck'
+	$res = Test-Path ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 	If ($res -eq $true)
 	{
-		[int]$upchkcnt = Get-ItemProperty 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck' | select -ExpandProperty IgnoreCount
+		[int]$upchkcnt = Get-Content ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 	}
-	Else
+	If ($upchkcnt -eq $null -or $upchkcnt -ge 5)
 	{
-		New-Item -Path 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck' -Value "1"
-		Set-ItemProperty -Path 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck' -Name IgnoreCount -Value 0
-	}
-	If ($upchkcnt -eq 0 -or $upchkcnt -ge 10)
-	{
+		Remove-Item -Path ((Get-ScriptDirectory) + "\UpdateCheck.txt") -Force
 		$exepath = Get-ScriptDirectory
 		$exepath = $exepath + "\Astra Assist.exe"
 		$iv = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exepath).FileVersion
@@ -483,6 +465,7 @@ function Update-Check
 			$iv = $iv.SubString(0, 5)
 		}
 		$baseurl = "https://sheets.googleapis.com/v4/spreadsheets/1ewVNrW141HMNX3wxPej2MF4sLZE_HswCQSktnzjsAvA/values/A2:B2?key=AIzaSyD_-tGA6eLf4zRi1c8HnafMhcPksa2XV-E"
+		$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 		$results = Invoke-WebRequest -URI $baseurl -WebSession $session
 		[array]$dat = $results.Content | ConvertFrom-Json | Foreach-Object { $_.Values }
 		$cv = $dat[0]
@@ -491,9 +474,9 @@ function Update-Check
 		{
 			$wshell = New-Object -ComObject Wscript.Shell
 			$btclicked3 = $wshell.Popup("Notice: There is a newer version of Astra Assist available!
-Installed Version: " + $iv + "
-Update Version: " + $cv + "
-Click 'Yes' below if you would like to Update now. Or click 'No' if you do not.", 0, "New Version Detected", 0x4)
+	    Installed Version: " + $iv + "
+	    Update Version: " + $cv + "
+	    Click 'Yes' below if you would like to Update now. Or click 'No' if you do not.", 0, "New Version Detected", 0x4)
 			If ($btclicked3 -eq "6")
 			{
 				$dpath = $env:USERPROFILE
@@ -506,14 +489,15 @@ Click 'Yes' below if you would like to Update now. Or click 'No' if you do not."
 			}
 			Else
 			{
-				Set-ItemProperty -Path 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck' -Name IgnoreCount -Value 1
+				$up = 1
+				$up | Out-File ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 			}
 		}
 	}
 	Else
 	{
 		$upchkcnt = $upchkcnt + 1
-		Set-ItemProperty -Path 'HKCU:\SOFTWARE\Carthage College\Astra Assist\UpdateCheck' -Name IgnoreCount -Value $upchkcnt
+		$upchkcnt | Out-File ((Get-ScriptDirectory) + "\UpdateCheck.txt")
 	}
 }
 
@@ -588,6 +572,11 @@ function Get-InstructorData ($id)
 	}
 	$startdate = ((((Get-Date).AddDays($st)).GetDateTimeFormats('s') | Out-String).SubString(0, 10) + "T00%3A00%3A00")
 	$enddate = ((((Get-Date).AddDays($en)).GetDateTimeFormats('s') | Out-String).SubString(0, 10) + "T00%3A00%3A00")
+	$cookieurl = "https://astra.carthage.edu/Astra/Portal/GuestPortal.aspx"
+	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$ckreq = Invoke-WebRequest -Uri $cookieurl -SessionVariable websession
+	$cookies = $websession.Cookies.GetCookies($cookieurl)
+	$session.Cookies.Add($cookies)
 	$baseurl = "http://astra.carthage.edu/Astra/~api/calendar/calendarList?action=get&view=json&fields=BuildingCode,RoomNumber,ActivityName,StartDate,EndDate,StartMinute,EndMinute&filter="
 	$filters = "(((StartDate%3E%3D%22" + $startdate + "%22)%26%26(EndDate%3C%3D%22" + $enddate + "%22))%26%26(SectionMeetInstanceByActivityId.SectionMeeting.PrimaryInstructorId%20in%20(%22" + $id + "%22)))"
 	$bi = $baseurl + $filters
@@ -684,6 +673,7 @@ function Gen-WeekPeriods
 
 function Create-RoomCards ($data, $dates, $fpath)
 {
+	
 	$startdate = $dates[0]
 	$enddate = $dates[1]
 	$selbld = ($data.BuildingName[0]).ToString()
@@ -692,119 +682,207 @@ function Create-RoomCards ($data, $dates, $fpath)
 	{
 		$times = $data.StartTime[$i].ToString() + " - " + $data.EndTime[$i].ToString()
 		$item = New-Object PSObject
+		
 		$item | Add-Member -Type NoteProperty -Name 'Times' -Value $times
+		
 		$item | Add-Member -Type NoteProperty -Name 'Event Name' -Value $data.EventName[$i]
+		
 		$item | Add-Member -Type NoteProperty -Name 'Instructor/Contact' -Value $data.InstructorName[$i]
+		
 		$item | Add-Member -Type NoteProperty -Name 'Day' -Value $data.EventDate[$i]
+		
 		$item | Add-Member -Type NoteProperty -Name 'RoomName' -Value $data.RoomName[$i]
+		
 		$fmtdta += $item
+		
 	}
+	
+	
+	
 	$a = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
 <html xmlns="http://www.w3.org/1999/xhtml">
+
 <head>
-<style type="text/css">
+
+<style>
+
  body {
- 	font-family: sans-serif;
- 	font-size: 10pt;
+
+ 	font-family: sans-serif; 
+
  }
+
  h1 {
+
  	margin-bottom: 1px;
+
  	text-align: center; 
+
  }
+
  h3 {
+
  	text-align: center; 
- 	margin-bottom: 0px;
+
  }
+
  table {
-	border-style: none;
+
+	border-style: 0px solid black; 
+
 	border-collapse: collapse;
-	padding-top: 10px;
-	page-break-inside: avoid; 
+
 	width: 100%;
+
+	page-break-inside: avoid; 
+
  }
- tr:nth-child(even) {
- 	background-color: #e9e9e9;
+
+ tr {
+
+ 	border-bottom: 1px solid black; 
+
  }
+
+ td {
+
+ 	padding: 5px; 
+
+ }
+
+ tr:nth-child(even) { 
+
+ 	background-color: rgba(233,233,233,1); 
+
+ }
+
  tr th {
- 	background-color: #a6ceed;
- 	border-top: 1px solid #a6ceed;
- 	border-left: 0px solid black;
- 	border-right: 0px solid black;
- 	border-bottom: 1px solid black;
- 	padding: 5px;
- 	text-align: left;
-	-webkit-print-color-adjust: exact;
- } 
- tr:nth-child(2) {
- 	border-left: 1px solid #a6ceed;
- 	border-right: 1px solid #a6ceed;
+
+ 	background-color: rgba(148,198,241,.75); 
+
  }
+
  tr th h3 {
+
  	background-color: white;
- 	margin-top: 10px;
+
  	text-align: left;
+
+ 	margin: 5px;
+
+ 	padding-top: 15px;
+
  }
- tr th:only-child {
+
+ tr th:only-child { 
+
  	background-color: white;
- 	border-style: none;
+
  }
+
  tr th:nth-child(odd) { 
- 	width: 25%;
- }
+
+	width: 25%;
+
+	}
+
  tr th:nth-child(even) {
+
  	width: 50%;
+
  }
- tr td {
- 	border: 1px solid black;
- 	padding: 5px;
- }
+
  .pagebreak {
+
  	page-break-before: always;
+
  }
+
 </style>
+
 </head><body>'
+	
 	$roomlist = $data.RoomName | Sort-Object | Get-Unique -asString
-	$daysofweek = @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday")
+	
+	$daysofweek = @("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+	
 	Foreach ($room in $roomlist)
 	{
+		
 		$rmn = $room.SubString(($bldcd.Length), ($room.Length - ($bldcd.Length)))
+		
 		$a += '<h1>' + $selbld + " " + $rmn + '</h1>'
+		
 		$a += '<h3>All Activities from ' + $startdate + " to " + $enddate + '</h3>'
+		
 		$temp1 = $fmtdta | Where-Object { $_.RoomName -eq $room } | Select "Times", "Event Name", "Instructor/Contact", "Day"
+		
 		Foreach ($day in $daysofweek)
 		{
+			
 			If (($temp1 | Where-Object { $_.Day -eq $day }) -ne $null)
 			{
+				
 				$a += '<table>'
+				
 				$a += '<tr><th colspan="3"><h3>' + $day + '</h3></th></tr>'
+				
 				$a += '<tr><th>Times</th><th>Event Name</th><th>Instructor/Contact</th></tr>
+
 '
+				
 				[array]$temp2 = $temp1 | Where-Object { $_.Day -eq $day } | Select "Times", "Event Name", "Instructor/Contact"
+				
 				For ($i = 0; $i -lt $temp2.Length; $i++)
 				{
+					
 					If ($temp2.Length -ne 1)
 					{
+						
 						$time = $temp2.Times[$i]
+						
 						$actname = $temp2."Event Name"[$i]
+						
 						$instname = $temp2."Instructor/Contact"[$i]
+						
 						$a += '<tr><td>' + $time + '</td><td>' + $actname + '</td><td>' + $instname + '</td></tr>
+
 '
+						
 					}
+					
 					Else
 					{
+						
 						$time = $temp2.Times
+						
 						$actname = $temp2."Event Name"
+						
 						$instname = $temp2."Instructor/Contact"
+						
 						$a += '<tr><td>' + $time + '</td><td>' + $actname + '</td><td>' + $instname + '</td></tr>
+
 '
+						
 					}
+					
 				}
+				
 				$a += '</table>'
+				
 			}
+			
 		}
+		
 		$a += '<div class="pagebreak"></div>
+
 '
+		
 	}
+	
 	$a += '	</body></html>'
+	
 	$a | Out-File $fpath
+	
 }
